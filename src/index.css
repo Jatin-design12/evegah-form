@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GLOBAL */
+body {
+  @apply bg-gray-100 text-gray-800;
+  font-family: "Poppins", "Metropolis", system-ui, sans-serif;
+}
+
+/* INPUTS */
+.input {
+  @apply w-full px-4 py-2 border rounded-xl focus:outline-none
+         focus:ring-2 focus:ring-brand-medium;
+}
+
+/* LABEL */
+.label {
+  @apply block text-sm font-medium text-gray-600 mb-1;
+}
+
+/* PRIMARY BUTTON */
+.btn-primary {
+  @apply bg-brand-dark text-white px-6 py-2 rounded-xl
+         hover:opacity-90 transition;
+}
+
+/* SECONDARY BUTTON */
+.btn-secondary {
+  @apply bg-brand-light text-brand-dark px-6 py-2 rounded-xl
+         hover:bg-brand-soft transition;
+}
+
+/* CARD */
+.card {
+  @apply bg-white rounded-2xl shadow border border-gray-100;
+}
+
+/* BADGE */
+.badge {
+  @apply px-3 py-1 rounded-full text-xs font-semibold;
+}
