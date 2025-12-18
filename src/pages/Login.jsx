@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../config/firebase";
-import Logo from "../assets/evegah-logo.svg";
+import Logo from "../assets/logo.png";
 
 export default function Login() {
   const navigate = useNavigate();

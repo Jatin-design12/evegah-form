@@ -1,8 +1,10 @@
-import { supabase } from "../../config/supabase";
+import { apiFetch } from "../../config/api";
 
 export default function DeleteModal({ rider, close, reload }) {
   async function deleteRider() {
-    await supabase.from("riders").delete().eq("id", rider.id);
+    await apiFetch(`/api/riders/${encodeURIComponent(rider.id)}`, {
+      method: "DELETE",
+    });
     reload();
     close();
   }

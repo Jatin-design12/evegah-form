@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { supabase } from "../config/supabase";
+import { useCallback, useEffect, useState } from "react";
+import { apiFetch } from "../config/api";
 
 export default function useLiveAnalytics({ zone, date }) {
   const [ridersData, setRidersData] = useState([]);
@@ -7,52 +7,36 @@ export default function useLiveAnalytics({ zone, date }) {
   const [zoneData, setZoneData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
 
-    // DAILY RIDERS
-    let ridersQuery = supabase.from("daily_riders").select("*");
-    if (zone) ridersQuery = ridersQuery.eq("zone", zone);
-    if (date) ridersQuery = ridersQuery.eq("date", date);
+    try {
+      const qsRiders = new URLSearchParams();
+      if (zone) qsRiders.set("zone", zone);
+      if (date) qsRiders.set("date", date);
 
-    const { data: riders } = await ridersQuery;
+      const qsEarnings = new URLSearchParams();
+      if (date) qsEarnings.set("date", date);
 
-    // EARNINGS
-    let earningsQuery = supabase.from("daily_earnings").select("*");
-    if (date) earningsQuery = earningsQuery.eq("date", date);
+      const [riders, earnings, zones] = await Promise.all([
+        apiFetch(`/api/analytics/daily-riders?${qsRiders.toString()}`),
+        apiFetch(`/api/analytics/daily-earnings?${qsEarnings.toString()}`),
+        apiFetch("/api/analytics/zone-distribution"),
+      ]);
 
-    const { data: earnings } = await earningsQuery;
-
-    // ZONE DISTRIBUTION
-    const { data: zones } = await supabase
-      .from("riders")
-      .select("zone, count:zone", { group: "zone" });
-
-    setRidersData(riders || []);
-    setEarningsData(earnings || []);
-    setZoneData(zones || []);
-    setLoading(false);
-  };
+      setRidersData(Array.isArray(riders) ? riders : []);
+      setEarningsData(Array.isArray(earnings) ? earnings : []);
+      setZoneData(Array.isArray(zones) ? zones : []);
+    } finally {
+      setLoading(false);
+    }
+  }, [zone, date]);
 
   useEffect(() => {
     fetchAnalytics();
-
-    const channel = supabase
-      .channel("analytics-live")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "riders" },
-        fetchAnalytics
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "rentals" },
-        fetchAnalytics
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
-  }, [zone, date]);
+    const timer = setInterval(fetchAnalytics, 15000);
+    return () => clearInterval(timer);
+  }, [fetchAnalytics]);
 
   return { ridersData, earningsData, zoneData, loading };
 }

@@ -1,17 +1,28 @@
 import { useEffect, useState } from "react";
 import AdminSidebar from "../../components/admin/AdminSidebar";
 import AdminTable from "../../components/AdminTable";
-import { supabase } from "../../config/supabase";
+import { apiFetch } from "../../config/api";
 
 export default function ReturnsTable() {
   const [data, setData] = useState([]);
 
+  const load = async () => {
+    const rows = await apiFetch("/api/returns");
+    setData(rows || []);
+  };
+
   useEffect(() => {
-    supabase
-      .from("returns")
-      .select("*")
-      .order("returned_at", { ascending: false })
-      .then(({ data }) => setData(data || []));
+    let mounted = true;
+    load();
+    const interval = setInterval(() => {
+      if (!mounted) return;
+      load();
+    }, 15000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const columns = [

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../../config/supabase";
+import { apiFetch } from "../../config/api";
 
 export default function EditRiderModal({ rider, close, reload }) {
   const [form, setForm] = useState(rider);
@@ -9,15 +9,15 @@ export default function EditRiderModal({ rider, close, reload }) {
   }
 
   async function saveRider() {
-    await supabase
-      .from("riders")
-      .update({
+    await apiFetch(`/api/riders/${encodeURIComponent(rider.id)}`, {
+      method: "PATCH",
+      body: {
         full_name: form.full_name,
         mobile: form.mobile,
         aadhaar: form.aadhaar,
         status: form.status,
-      })
-      .eq("id", rider.id);
+      },
+    });
 
     reload();
     close();

@@ -7,6 +7,8 @@ export default function useAuth() {
   const [role, setRole] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const adminEmail = "adminev@gmail.com";
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser) {
@@ -16,10 +18,20 @@ export default function useAuth() {
         return;
       }
 
-      const token = await getIdTokenResult(firebaseUser);
-      setUser(firebaseUser);
-      setRole(token.claims.role || "user"); // default = user
-      setLoading(false);
+      try {
+        const token = await getIdTokenResult(firebaseUser);
+        const email = String(firebaseUser.email || "").toLowerCase();
+        const derivedRole = email === adminEmail ? "admin" : (token.claims.role || "employee");
+
+        setUser(firebaseUser);
+        setRole(derivedRole);
+      } catch {
+        const email = String(firebaseUser.email || "").toLowerCase();
+        setUser(firebaseUser);
+        setRole(email === adminEmail ? "admin" : "employee");
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsub();

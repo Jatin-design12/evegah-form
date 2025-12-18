@@ -1,10 +1,10 @@
-import UserSidebar from "../components/UserSidebar";
+import EmployeeSidebar from "../../components/EmployeeSidebar";
 import FormHeader from "../components/FormHeader";
 
 export default function ReturnBike() {
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <UserSidebar />
+      <EmployeeSidebar />
 
       <div className="flex-1 p-10">
 

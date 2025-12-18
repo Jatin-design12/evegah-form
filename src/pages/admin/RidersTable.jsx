@@ -1,5 +1,5 @@
 import AdminSidebar from "../../components/admin/AdminSidebar";
-import { supabase } from "../../config/supabase";
+import { apiFetch } from "../../config/api";
 
 import EditRiderModal from "./EditRiderModal";
 import DeleteModal from "./DeleteModal";
@@ -23,7 +23,7 @@ export default function RidersTable() {
 
   // Filters
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [rideStatus, setRideStatus] = useState("all");
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
 
   // Pagination
@@ -33,9 +33,9 @@ export default function RidersTable() {
 
   // Summary stats
   const [totalRiders, setTotalRiders] = useState(0);
-  const [activeRiders, setActiveRiders] = useState(0);
-  const [suspendedRiders, setSuspendedRiders] = useState(0);
-  const [totalRides, setTotalRides] = useState(0);
+  const [activeRentedVehicles, setActiveRentedVehicles] = useState(0);
+  const [retainRiders, setRetainRiders] = useState(0);
+  const [endedRiders, setEndedRiders] = useState(0);
 
   // Bulk actions
   const [selected, setSelected] = useState([]);
@@ -45,66 +45,49 @@ export default function RidersTable() {
   const [deleteItem, setDeleteItem] = useState(null);
   const [viewItem, setViewItem] = useState(null);
 
-  useEffect(() => {
-    loadRiders();
-  }, [page, search, status, dateRange]);
-
-  useEffect(() => {
-    loadStats();
-  }, []);
-
   async function loadStats() {
-    const { count: total } = await supabase
-      .from("riders")
-      .select("*", { count: "exact" });
-
-    const { count: active } = await supabase
-      .from("riders")
-      .select("*", { count: "exact" })
-      .eq("status", "active");
-
-    const { count: suspended } = await supabase
-      .from("riders")
-      .select("*", { count: "exact" })
-      .eq("status", "suspended");
-
-    const { count: rides } = await supabase
-      .from("rentals")
-      .select("*", { count: "exact" });
-
-    setTotalRiders(total || 0);
-    setActiveRiders(active || 0);
-    setSuspendedRiders(suspended || 0);
-    setTotalRides(rides || 0);
+    const stats = await apiFetch("/api/riders/stats");
+    setTotalRiders(stats?.totalRiders || 0);
+    setActiveRentedVehicles(stats?.activeRentedVehicles || 0);
+    setRetainRiders(stats?.retainRiders || 0);
+    setEndedRiders(stats?.endedRiders || 0);
   }
 
   async function loadRiders() {
     setLoading(true);
 
-    let query = supabase.from("riders").select("*", { count: "exact" });
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(limit));
+    if (search.trim()) params.set("search", search.trim());
+    if (rideStatus && rideStatus !== "all") params.set("rideStatus", rideStatus);
+    if (dateRange.start) params.set("start", dateRange.start);
+    if (dateRange.end) params.set("end", dateRange.end);
 
-    if (search.trim() !== "") {
-      query = query.or(
-        `full_name.ilike.%${search}%,mobile.ilike.%${search}%,aadhaar.ilike.%${search}%`
-      );
-    }
-
-    if (status !== "all") query = query.eq("status", status);
-
-    if (dateRange.start) query = query.gte("created_at", dateRange.start);
-    if (dateRange.end) query = query.lte("created_at", dateRange.end);
-
-    const start = (page - 1) * limit;
-    const end = start + limit - 1;
-
-    const { data, count } = await query
-      .range(start, end)
-      .order("created_at", { ascending: false });
-
-    setRiders(data || []);
-    setTotalCount(count || 0);
+    const result = await apiFetch(`/api/riders?${params.toString()}`);
+    setRiders(result?.data || []);
+    setTotalCount(result?.totalCount || 0);
     setLoading(false);
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadRiders();
+  }, [page, search, rideStatus, dateRange]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadStats();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadStats();
+      loadRiders();
+    }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, search, rideStatus, dateRange]);
 
   function totalPages() {
     return Math.ceil(totalCount / limit);
@@ -159,20 +142,18 @@ export default function RidersTable() {
           </div>
 
           <div className="bg-white shadow rounded-xl p-4">
-            <p className="text-gray-500 text-sm">Active Riders</p>
-            <h2 className="text-2xl font-bold text-green-600">{activeRiders}</h2>
+            <p className="text-gray-500 text-sm">Active Rented Vehicles</p>
+            <h2 className="text-2xl font-bold text-green-600">{activeRentedVehicles}</h2>
           </div>
 
           <div className="bg-white shadow rounded-xl p-4">
-            <p className="text-gray-500 text-sm">Suspended Riders</p>
-            <h2 className="text-2xl font-bold text-red-600">
-              {suspendedRiders}
-            </h2>
+            <p className="text-gray-500 text-sm">Retain Riders</p>
+            <h2 className="text-2xl font-bold text-blue-700">{retainRiders}</h2>
           </div>
 
           <div className="bg-white shadow rounded-xl p-4">
-            <p className="text-gray-500 text-sm">Total Rides</p>
-            <h2 className="text-2xl font-bold">{totalRides}</h2>
+            <p className="text-gray-500 text-sm">Ended Riders</p>
+            <h2 className="text-2xl font-bold text-gray-900">{endedRiders}</h2>
           </div>
         </div>
 
@@ -213,13 +194,14 @@ export default function RidersTable() {
           {/* FILTERS RIGHT */}
           <div className="flex items-center gap-3">
             <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              value={rideStatus}
+              onChange={(e) => setRideStatus(e.target.value)}
               className="px-3 py-2 border rounded-md"
             >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
+              <option value="all">All Ride</option>
+              <option value="riding">Riding</option>
+              <option value="returned">Returned</option>
+              <option value="no_ride">No Ride</option>
             </select>
 
             <input
@@ -271,7 +253,8 @@ export default function RidersTable() {
                   <th className="p-3 text-left">Name</th>
                   <th className="p-3 text-left">Mobile</th>
                   <th className="p-3 text-left">Aadhaar</th>
-                  <th className="p-3 text-left">Status</th>
+                  <th className="p-3 text-left">Ride</th>
+                  <th className="p-3 text-left">Type</th>
                   <th className="p-3 text-left">Created</th>
                   <th className="p-3 text-center">Actions</th>
                 </tr>
@@ -299,14 +282,35 @@ export default function RidersTable() {
                     <td className="p-3">{r.aadhaar}</td>
 
                     <td className="p-3">
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex w-fit px-2 py-1 rounded-full text-xs font-semibold ${
+                            r.ride_status === "Riding"
+                              ? "bg-green-100 text-green-700"
+                              : r.ride_status === "Returned"
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {r.ride_status || "-"}
+                        </span>
+                        {r.active_vehicle_number ? (
+                          <span className="text-xs text-gray-500">
+                            Vehicle: {r.active_vehicle_number}
+                          </span>
+                        ) : null}
+                      </div>
+                    </td>
+
+                    <td className="p-3">
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          r.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
+                          r.rider_type === "Retain"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-700"
                         }`}
                       >
-                        {r.status}
+                        {r.rider_type || "-"}
                       </span>
                     </td>
 
